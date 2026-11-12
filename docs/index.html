@@ -1,0 +1,1291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShopSecure — Pre-Launch Penetration Test</title>
+<style>
+/* ============================ BASE / THEME ============================ */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --header-h:76px;
+  --bg:#05070d; --bg2:#080b13; --panel:#0a0e17; --panel2:#0c1220;
+  --line:rgba(255,255,255,.075); --line2:rgba(255,255,255,.13);
+  --text:#cfd9e6; --muted:#7a889d; --dim:#4d5a6e;
+  --accent:#ff2e63; --accent2:#ff7a3d;
+  --accent-rgb:255,46,99; --accent2-rgb:255,122,61;
+  --glow:rgba(255,46,99,.45);
+  --ok:#2dff9e; --fail:#ffb020; --pwn:#ff3b6b; --info:#4dd7ff; --lock:#b14bff;
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono","Fira Code",Consolas,monospace;
+  --sans:system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+body[data-mode="secured"]{
+  --accent:#2dff9e; --accent2:#22d3ee;
+  --accent-rgb:45,255,158; --accent2-rgb:34,211,238;
+  --glow:rgba(45,255,158,.4);
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--text); font-family:var(--sans);
+  min-height:100vh; overflow-x:hidden; position:relative;
+  transition:background .6s ease;
+  background-image:
+    radial-gradient(900px 500px at 12% -8%, rgba(var(--accent-rgb),.13), transparent 60%),
+    radial-gradient(800px 520px at 92% 4%, rgba(var(--accent2-rgb),.10), transparent 60%),
+    linear-gradient(180deg,#05070d 0%,#070a12 55%,#05070d 100%);
+  background-attachment:fixed;
+}
+::selection{background:rgba(var(--accent-rgb),.35);color:#fff}
+canvas#matrix{position:fixed;inset:0;z-index:0;opacity:.5;pointer-events:none}
+.scanlines{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.35;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.028) 0 1px,transparent 1px 4px)}
+.wrap{position:relative;z-index:2}
+a{color:var(--accent)}
+code{font-family:var(--mono);background:rgba(var(--accent-rgb),.10);
+  border:1px solid rgba(var(--accent-rgb),.30);color:var(--accent);
+  padding:2px 7px;border-radius:6px;font-size:.86em;white-space:nowrap;
+  transition:background .5s,border-color .5s,color .5s}
+button{font-family:inherit}
+/* scrollbars */
+*::-webkit-scrollbar{width:9px;height:9px}
+*::-webkit-scrollbar-track{background:rgba(255,255,255,.03)}
+*::-webkit-scrollbar-thumb{background:rgba(var(--accent-rgb),.35);border-radius:9px}
+*::-webkit-scrollbar-thumb:hover{background:rgba(var(--accent-rgb),.6)}
+
+/* ============================ HEADER ============================ */
+.topbar{
+  position:sticky;top:0;z-index:60;
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  height:var(--header-h);padding:0 clamp(14px,3vw,34px);
+  background:rgba(5,7,13,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo-mark{
+  width:38px;height:38px;flex:none;border-radius:11px;display:grid;place-items:center;
+  font-family:var(--mono);font-weight:800;font-size:19px;color:#04070c;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:0 0 22px var(--glow),0 8px 20px -10px var(--glow);
+  transition:background .5s,box-shadow .5s;
+}
+.brand h1{font-family:var(--mono);font-size:17px;letter-spacing:.26em;font-weight:800;color:#eaf2ff;white-space:nowrap}
+.brand .sub{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.24em;color:var(--muted);margin-top:3px;white-space:nowrap}
+.top-actions{display:flex;align-items:center;gap:10px}
+.ghost-btn{
+  background:transparent;border:1px solid var(--line2);color:var(--muted);
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;padding:10px 15px;border-radius:9px;
+  cursor:pointer;transition:.28s;
+}
+.ghost-btn:hover{color:var(--accent);border-color:rgba(var(--accent-rgb),.6);
+  box-shadow:0 0 16px rgba(var(--accent-rgb),.25);transform:translateY(-2px)}
+
+/* ---------- big mode switch ---------- */
+.switch-wrap{display:flex;align-items:center;gap:13px}
+.switch-label{font-family:var(--mono);font-size:11.5px;letter-spacing:.2em;color:var(--dim);transition:.4s;user-select:none}
+.switch-label.on{color:var(--accent);text-shadow:0 0 14px var(--glow)}
+.mode-switch{
+  position:relative;width:92px;height:42px;border-radius:999px;cursor:pointer;flex:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+  border:1.5px solid rgba(var(--accent-rgb),.55);
+  box-shadow:0 0 18px rgba(var(--accent-rgb),.28), inset 0 0 14px rgba(var(--accent-rgb),.14);
+  transition:border-color .45s,box-shadow .45s;
+}
+.mode-switch .knob{
+  position:absolute;top:4px;left:5px;width:32px;height:32px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:0 0 20px var(--glow);
+  transition:transform .5s cubic-bezier(.68,-.55,.27,1.55),background .45s,box-shadow .45s;
+}
+.mode-switch .knob::after{
+  content:"";position:absolute;inset:9px;border-radius:50%;
+  background:rgba(4,7,12,.55);
+}
+body[data-mode="secured"] .mode-switch .knob{transform:translateX(49px)}
+.mode-switch:hover{box-shadow:0 0 26px rgba(var(--accent-rgb),.45), inset 0 0 16px rgba(var(--accent-rgb),.2)}
+.mode-switch:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+/* ============================ HERO ============================ */
+.hero{padding:clamp(34px,6vw,64px) clamp(14px,3vw,34px) clamp(20px,3vw,30px);max-width:1500px;margin:0 auto}
+.kicker{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.34em;color:var(--muted);
+  display:inline-flex;align-items:center;gap:10px;margin-bottom:18px;
+  border:1px solid var(--line);border-radius:999px;padding:8px 16px;background:rgba(255,255,255,.02)
+}
+.kicker .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 10px var(--accent);animation:blink 1.6s infinite}
+.hero-title{
+  font-family:var(--mono);font-weight:800;text-transform:uppercase;
+  font-size:clamp(1.5rem,4.6vw,3.35rem);line-height:1.12;letter-spacing:.02em;color:#f2f7ff;
+  text-shadow:0 0 30px rgba(var(--accent-rgb),.35);min-height:1.2em;
+}
+.hero-title .suffix{color:var(--accent);text-shadow:0 0 22px var(--glow)}
+.caret{display:inline-block;width:11px;height:.95em;background:var(--accent);
+  margin-left:6px;vertical-align:-.12em;box-shadow:0 0 12px var(--glow);animation:blink .95s steps(1) infinite}
+.hero-sub{margin-top:16px;color:var(--muted);max-width:760px;font-size:15px;line-height:1.7}
+.status-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.chip{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.15em;padding:9px 15px;border-radius:8px;
+  border:1px solid var(--line2);background:rgba(255,255,255,.025);color:var(--muted);
+  display:inline-flex;align-items:center;gap:8px;transition:.45s;
+}
+.chip b{color:var(--text);font-weight:700}
+.chip.live{border-color:rgba(var(--accent-rgb),.45);color:var(--accent);
+  background:rgba(var(--accent-rgb),.07);box-shadow:0 0 16px rgba(var(--accent-rgb),.16)}
+.chip .led{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 9px currentColor}
+
+/* ============================ TABS ============================ */
+.tabs{
+  position:sticky;top:var(--header-h);z-index:50;display:flex;gap:8px;
+  padding:12px clamp(14px,3vw,34px);overflow-x:auto;
+  background:rgba(5,7,13,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+}
+.tab{
+  flex:none;background:rgba(255,255,255,.03);border:1px solid var(--line);color:var(--muted);
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.17em;padding:12px 20px;border-radius:10px;
+  cursor:pointer;transition:.3s;display:inline-flex;align-items:center;gap:9px;
+}
+.tab:hover{color:var(--text);border-color:rgba(var(--accent-rgb),.45);transform:translateY(-2px);
+  box-shadow:0 8px 20px -12px var(--glow)}
+.tab.active{
+  color:#04070c;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border-color:transparent;font-weight:700;box-shadow:0 0 22px var(--glow)}
+.tab .count{background:rgba(4,7,12,.28);border-radius:5px;padding:2px 7px;font-size:10px}
+.tab.active .count{background:rgba(4,7,12,.35)}
+
+/* ============================ LAYOUT ============================ */
+.layout{
+  display:grid;grid-template-columns:minmax(0,1fr) 365px;gap:18px;align-items:start;
+  padding:22px clamp(14px,3vw,34px) 70px;max-width:1500px;margin:0 auto;
+}
+.content{min-width:0;display:flex;flex-direction:column;gap:18px}
+.panel{display:none}
+.panel.active{display:flex;flex-direction:column;gap:18px;animation:panelIn .45s cubic-bezier(.2,.8,.3,1) both}
+
+/* ============================ CARDS / COMMON ============================ */
+.card{
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+  border:1px solid var(--line);border-radius:16px;padding:clamp(18px,2.4vw,26px);
+  position:relative;overflow:hidden;
+  transition:border-color .5s,box-shadow .5s,background .5s,transform .3s;
+}
+.card::before{
+  content:"";position:absolute;inset:0 0 auto 0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(var(--accent-rgb),.75),transparent);
+  opacity:.7;transition:.5s;
+}
+.card:hover{border-color:rgba(var(--accent-rgb),.38);box-shadow:0 0 34px rgba(var(--accent-rgb),.13),0 22px 44px -30px #000}
+.card-head{
+  display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;
+  font-family:var(--mono);font-size:12.5px;letter-spacing:.2em;color:#e6eefb;text-transform:uppercase;
+}
+.card-head .ic{
+  width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;
+  background:rgba(var(--accent-rgb),.14);border:1px solid rgba(var(--accent-rgb),.4);
+  color:var(--accent);box-shadow:0 0 14px rgba(var(--accent-rgb),.18);transition:.5s;
+}
+.card-head .spacer{flex:1}
+.mode-tag{
+  font-size:9.5px;letter-spacing:.18em;padding:5px 10px;border-radius:6px;font-weight:700;
+  background:rgba(var(--accent-rgb),.14);border:1px solid rgba(var(--accent-rgb),.45);
+  color:var(--accent);text-shadow:0 0 10px var(--glow);transition:.5s;
+}
+
+/* ============================ FORMS ============================ */
+.field{margin-bottom:15px}
+.field label{
+  display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;color:var(--muted);
+  margin-bottom:8px;text-transform:uppercase;
+}
+.input,.select,.textarea{
+  width:100%;background:rgba(255,255,255,.035);border:1px solid var(--line2);border-radius:11px;
+  padding:13px 15px;color:var(--text);font-family:var(--mono);font-size:14px;letter-spacing:.04em;
+  transition:.28s;
+}
+.textarea{resize:vertical;min-height:96px;line-height:1.6}
+.input::placeholder,.textarea::placeholder{color:var(--dim)}
+.input:focus,.select:focus,.textarea:focus{
+  outline:none;border-color:var(--accent);background:rgba(var(--accent-rgb),.06);
+  box-shadow:0 0 0 3px rgba(var(--accent-rgb),.14),0 0 22px rgba(var(--accent-rgb),.22);
+}
+.select{appearance:none;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%);
+  background-position:calc(100% - 20px) 21px,calc(100% - 14px) 21px;
+  background-size:6px 6px,6px 6px;background-repeat:no-repeat}
+.select option{background:#0b1018;color:var(--text)}
+.btn{
+  position:relative;border:none;border-radius:11px;cursor:pointer;
+  font-family:var(--mono);font-size:12.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  padding:14px 26px;color:#04070c;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:0 0 20px var(--glow),0 14px 28px -16px var(--glow);
+  transition:transform .25s,box-shadow .25s,filter .25s,background .5s;
+}
+.btn:hover{transform:translateY(-3px);box-shadow:0 0 34px var(--glow),0 20px 34px -16px var(--glow);filter:brightness(1.08)}
+.btn:active{transform:translateY(0) scale(.98)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn.block{width:100%}
+.btn.ghost{
+  background:transparent;color:var(--accent);border:1.5px solid rgba(var(--accent-rgb),.55);
+  box-shadow:none;
+}
+.btn.ghost:hover{background:rgba(var(--accent-rgb),.1);box-shadow:0 0 20px rgba(var(--accent-rgb),.28)}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>*{flex:1;min-width:170px}
+
+/* result banner */
+.result{
+  margin-top:16px;border-radius:11px;padding:14px 16px;font-family:var(--mono);font-size:12.5px;
+  line-height:1.65;letter-spacing:.03em;border:1px solid;display:flex;gap:11px;align-items:flex-start;
+  animation:panelIn .35s both;
+}
+.result .badge{flex:none;font-size:9.5px;letter-spacing:.16em;padding:4px 8px;border-radius:5px;font-weight:700;margin-top:1px}
+.result.ok{border-color:rgba(45,255,158,.45);background:rgba(45,255,158,.08);color:#b7ffe2}
+.result.ok .badge{background:rgba(45,255,158,.2);color:var(--ok)}
+.result.fail{border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.08);color:#ffe6bc}
+.result.fail .badge{background:rgba(255,176,32,.2);color:var(--fail)}
+.result.block{border-color:rgba(45,255,158,.55);background:rgba(45,255,158,.10);color:#c9ffec;
+  animation:panelIn .35s both,blockPulse 1s ease .1s 2}
+.result.block .badge{background:rgba(45,255,158,.24);color:var(--ok)}
+.result.err{border-color:rgba(255,59,107,.5);background:rgba(255,59,107,.09);color:#ffd0da}
+.result.err .badge{background:rgba(255,59,107,.22);color:var(--pwn)}
+
+/* hint / payload chips */
+.hint{
+  margin-top:16px;font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:2.1;
+  border-top:1px dashed var(--line2);padding-top:14px;
+}
+.hint .lbl{color:var(--dim);letter-spacing:.14em;font-size:10px;display:block;margin-bottom:6px}
+.p-chip{
+  cursor:pointer;border:1px dashed rgba(var(--accent-rgb),.5);background:rgba(var(--accent-rgb),.07);
+  color:var(--accent);font-family:var(--mono);font-size:11.5px;padding:5px 11px;border-radius:7px;
+  margin:3px 6px 3px 0;transition:.25s;letter-spacing:.02em;
+}
+.p-chip:hover{background:rgba(var(--accent-rgb),.18);box-shadow:0 0 16px rgba(var(--accent-rgb),.3);
+  transform:translateY(-2px)}
+
+/* attempts meter */
+.attempts{display:none;margin-bottom:15px;font-family:var(--mono);font-size:11px;letter-spacing:.1em}
+.attempts.show{display:block;animation:panelIn .3s both}
+.attempts .top{display:flex;justify-content:space-between;color:var(--muted);margin-bottom:7px}
+.attempts .top b{color:var(--text)}
+.attempts .bar{height:7px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}
+.attempts .fill{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--fail),var(--pwn));
+  box-shadow:0 0 12px rgba(255,176,32,.6);transition:width .45s cubic-bezier(.2,.8,.3,1)}
+.attempts.locked .fill{background:linear-gradient(90deg,var(--pwn),var(--lock));animation:blink 1s infinite}
+
+/* shake + auth card */
+.shake{animation:shake .55s cubic-bezier(.36,.07,.19,.97) both}
+
+/* ============================ SEARCH RESULTS ============================ */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:15px}
+.product{
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.012));
+  border:1px solid var(--line);border-radius:14px;padding:17px;position:relative;overflow:hidden;
+  transition:transform .3s cubic-bezier(.2,.8,.3,1),box-shadow .3s,border-color .5s;
+  animation:rise .5s cubic-bezier(.2,.8,.3,1) both;
+}
+.product::after{
+  content:"";position:absolute;top:-60%;left:-60%;width:80%;height:80%;
+  background:radial-gradient(circle,rgba(var(--accent-rgb),.22),transparent 70%);
+  opacity:0;transition:opacity .4s;pointer-events:none;
+}
+.product:hover{transform:translateY(-7px);border-color:rgba(var(--accent-rgb),.5);
+  box-shadow:0 0 30px rgba(var(--accent-rgb),.2),0 26px 40px -28px #000}
+.product:hover::after{opacity:1}
+.product .cat{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--accent);
+  border:1px solid rgba(var(--accent-rgb),.4);background:rgba(var(--accent-rgb),.1);
+  padding:4px 9px;border-radius:6px;display:inline-block;transition:.5s;
+}
+.product h4{font-size:15.5px;margin:12px 0 7px;color:#eef4ff;letter-spacing:.01em;line-height:1.35}
+.product p{font-size:12.5px;color:var(--muted);line-height:1.6;min-height:40px}
+.product .meta{display:flex;justify-content:space-between;align-items:center;margin-top:14px;
+  padding-top:13px;border-top:1px solid var(--line)}
+.price{font-family:var(--mono);font-weight:800;font-size:17px;color:var(--accent);
+  text-shadow:0 0 16px var(--glow);transition:.5s}
+.stars{font-family:var(--mono);font-size:12px;color:#ffcf5c;letter-spacing:1px}
+.search-bar{display:flex;gap:11px;flex-wrap:wrap}
+.search-bar .input{flex:1;min-width:210px}
+.meta-line{font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.08em;
+  margin:16px 0 13px;display:flex;align-items:center;gap:9px}
+.meta-line .led{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 9px var(--accent)}
+.empty{
+  text-align:center;padding:44px 20px;color:var(--dim);font-family:var(--mono);font-size:12.5px;
+  letter-spacing:.14em;border:1px dashed var(--line2);border-radius:14px;
+}
+
+/* ============================ REVIEWS ============================ */
+.review{
+  display:flex;gap:15px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01));
+  border:1px solid var(--line);border-radius:14px;padding:17px 18px;position:relative;
+  transition:border-color .5s,box-shadow .5s,transform .3s;
+  animation:rise .5s cubic-bezier(.2,.8,.3,1) both;
+}
+.review:hover{border-color:rgba(var(--accent-rgb),.4);transform:translateX(5px);
+  box-shadow:0 0 26px rgba(var(--accent-rgb),.13)}
+.avatar{
+  flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;
+  font-family:var(--mono);font-weight:800;font-size:16px;color:#04070c;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 16px var(--glow);
+  transition:.5s;
+}
+.review .r-body{min-width:0;flex:1}
+.review .r-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.review .r-name{font-family:var(--mono);font-size:13px;font-weight:700;color:#eef4ff;letter-spacing:.06em}
+.review .r-prod{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;color:var(--muted);
+  border:1px solid var(--line2);padding:3px 8px;border-radius:5px}
+.review .r-time{font-family:var(--mono);font-size:10px;color:var(--dim);margin-left:auto}
+.review .r-text{font-size:13.5px;line-height:1.7;color:#c3cede;word-wrap:break-word;overflow-wrap:anywhere}
+.review .r-text img{max-width:120px;border-radius:8px}
+.tag-san{
+  font-family:var(--mono);font-size:9px;letter-spacing:.15em;font-weight:700;padding:4px 9px;border-radius:5px;
+  background:rgba(45,255,158,.16);border:1px solid rgba(45,255,158,.5);color:var(--ok);
+  animation:panelIn .4s both;
+}
+.tag-xss{
+  font-family:var(--mono);font-size:9px;letter-spacing:.15em;font-weight:700;padding:4px 9px;border-radius:5px;
+  background:rgba(255,59,107,.16);border:1px solid rgba(255,59,107,.5);color:var(--pwn);
+}
+
+/* ============================ FINDINGS ============================ */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:13px}
+.stat{
+  border:1px solid var(--line);border-radius:13px;padding:15px 16px;background:rgba(255,255,255,.025);
+  transition:.4s;animation:rise .5s both;
+}
+.stat:hover{transform:translateY(-4px);border-color:rgba(var(--accent-rgb),.4)}
+.stat .n{font-family:var(--mono);font-size:26px;font-weight:800;line-height:1}
+.stat .l{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:var(--muted);margin-top:8px}
+.sev-critical .n{color:#ff2e63;text-shadow:0 0 18px rgba(255,46,99,.6)}
+.sev-high .n{color:#ff8a3d;text-shadow:0 0 18px rgba(255,138,61,.55)}
+.sev-medium .n{color:#ffd166;text-shadow:0 0 18px rgba(255,209,102,.5)}
+.sev-low .n{color:#4dd7ff;text-shadow:0 0 18px rgba(77,215,255,.5)}
+
+.findings{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.finding{
+  border:1px solid var(--line);border-radius:15px;padding:20px;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.038),rgba(255,255,255,.01));
+  transition:transform .3s,box-shadow .3s,border-color .5s;
+  animation:rise .55s cubic-bezier(.2,.8,.3,1) both;
+}
+.finding::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--sev,#888);
+  box-shadow:0 0 14px var(--sev,#888)}
+.finding:hover{transform:translateY(-6px);border-color:rgba(var(--accent-rgb),.45);
+  box-shadow:0 0 32px rgba(var(--accent-rgb),.16),0 26px 44px -30px #000}
+.f-top{display:flex;align-items:center;gap:9px;margin-bottom:13px;flex-wrap:wrap}
+.sev{
+  font-family:var(--mono);font-size:9.5px;font-weight:800;letter-spacing:.16em;padding:5px 10px;
+  border-radius:6px;color:#04070c;background:var(--sev);box-shadow:0 0 14px var(--sev);
+}
+.f-id{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.14em;margin-left:auto}
+.finding h4{font-size:15.5px;color:#eef4ff;line-height:1.4;margin-bottom:9px}
+.finding .where{font-family:var(--mono);font-size:10.5px;color:var(--accent);letter-spacing:.06em;
+  margin-bottom:11px;opacity:.9}
+.finding .desc{font-size:12.8px;color:var(--muted);line-height:1.68;margin-bottom:14px}
+.finding .fix{
+  font-size:12.5px;line-height:1.65;color:#b9c6d8;background:rgba(255,255,255,.03);
+  border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:13px;
+}
+.finding .fix b{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;display:block;margin-bottom:5px}
+.fix-no b{color:var(--pwn)} .fix-yes b{color:var(--ok)}
+.retest{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--muted);
+}
+.retest .pill{
+  font-weight:800;padding:6px 13px;border-radius:7px;letter-spacing:.16em;font-size:10px;
+  animation:flipIn .45s cubic-bezier(.2,.8,.3,1) both;
+}
+.pill.pass{background:rgba(45,255,158,.16);border:1px solid rgba(45,255,158,.55);color:var(--ok);
+  box-shadow:0 0 16px rgba(45,255,158,.3)}
+.pill.fail{background:rgba(255,59,107,.15);border:1px solid rgba(255,59,107,.55);color:var(--pwn);
+  box-shadow:0 0 16px rgba(255,59,107,.3)}
+
+/* headers table */
+.htable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+.htable th{
+  text-align:left;font-size:9.5px;letter-spacing:.18em;color:var(--dim);padding:0 12px 11px;
+  border-bottom:1px solid var(--line2);font-weight:600;
+}
+.htable td{padding:13px 12px;border-bottom:1px solid var(--line);color:var(--muted);
+  transition:.4s;word-break:break-all}
+.htable tr:last-child td{border-bottom:none}
+.htable td.hname{color:#e6eefb}
+.htable tr:hover td{background:rgba(var(--accent-rgb),.05)}
+.hbadge{font-size:9.5px;font-weight:800;letter-spacing:.14em;padding:5px 10px;border-radius:6px;white-space:nowrap}
+.hbadge.pass{background:rgba(45,255,158,.15);border:1px solid rgba(45,255,158,.5);color:var(--ok)}
+.hbadge.fail{background:rgba(255,59,107,.14);border:1px solid rgba(255,59,107,.5);color:var(--pwn)}
+
+/* ============================ LOG SIDEBAR ============================ */
+.log-panel{
+  position:sticky;top:calc(var(--header-h) + 62px);
+  height:calc(100vh - var(--header-h) - 84px);
+  display:flex;flex-direction:column;min-height:340px;
+  background:linear-gradient(180deg,rgba(10,14,23,.92),rgba(7,10,17,.96));
+  border:1px solid var(--line);border-radius:16px;overflow:hidden;
+  box-shadow:0 0 40px rgba(0,0,0,.5);transition:border-color .5s,box-shadow .5s;
+}
+.log-panel.pulsing{animation:panelPulse 1s ease 2;border-color:rgba(45,255,158,.7)}
+.log-head{
+  display:flex;align-items:center;gap:10px;padding:15px 16px;flex:none;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(90deg,rgba(var(--accent-rgb),.12),transparent);
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.19em;color:#e6eefb;transition:.5s;
+}
+.log-head .rec{width:9px;height:9px;border-radius:50%;background:var(--pwn);
+  box-shadow:0 0 11px var(--pwn);animation:blink 1.3s infinite}
+.log-head .cnt{margin-left:auto;font-size:10px;color:var(--muted);letter-spacing:.1em}
+.log-clear{background:none;border:none;color:var(--dim);font-family:var(--mono);font-size:10px;
+  letter-spacing:.12em;cursor:pointer;padding:4px 7px;border-radius:5px;transition:.25s}
+.log-clear:hover{color:var(--accent);background:rgba(var(--accent-rgb),.12)}
+.log-body{flex:1;overflow-y:auto;padding:13px;display:flex;flex-direction:column;gap:9px}
+.log-entry{
+  border:1px solid var(--line);border-left:3px solid var(--info);border-radius:10px;
+  padding:10px 12px;background:rgba(255,255,255,.028);
+  animation:slideIn .4s cubic-bezier(.2,.8,.3,1) both;transition:border-color .5s,background .5s;
+}
+.log-entry:hover{background:rgba(255,255,255,.05)}
+.log-line1{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.log-time{font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.06em}
+.log-kind{
+  font-family:var(--mono);font-size:8.5px;font-weight:800;letter-spacing:.16em;padding:3px 7px;
+  border-radius:4px;background:rgba(255,255,255,.07);color:var(--muted);
+}
+.log-status{margin-left:auto;font-family:var(--mono);font-size:8.5px;font-weight:800;letter-spacing:.14em;
+  padding:3px 7px;border-radius:4px}
+.log-msg{font-family:var(--mono);font-size:11.3px;line-height:1.62;color:#b9c6d8;word-break:break-word}
+.st-ok{border-left-color:var(--info)} .st-ok .log-status{background:rgba(77,215,255,.15);color:var(--info)}
+.st-pwn{border-left-color:var(--pwn);background:rgba(255,59,107,.07);
+  box-shadow:0 0 18px rgba(255,59,107,.14)}
+.st-pwn .log-status{background:rgba(255,59,107,.2);color:var(--pwn)}
+.st-pwn .log-kind{background:rgba(255,59,107,.16);color:var(--pwn)}
+.st-blocked{border-left-color:var(--ok);background:rgba(45,255,158,.06);
+  animation:slideIn .4s both,entryPulse 1.1s ease .15s 2}
+.st-blocked .log-status{background:rgba(45,255,158,.2);color:var(--ok)}
+.st-blocked .log-kind{background:rgba(45,255,158,.15);color:var(--ok)}
+.st-fail{border-left-color:var(--fail)} .st-fail .log-status{background:rgba(255,176,32,.18);color:var(--fail)}
+.st-fail .log-kind{background:rgba(255,176,32,.15);color:var(--fail)}
+.st-lock{border-left-color:var(--lock);background:rgba(177,75,255,.07)}
+.st-lock .log-status{background:rgba(177,75,255,.2);color:var(--lock)}
+.st-lock .log-kind{background:rgba(177,75,255,.16);color:var(--lock)}
+.log-foot{
+  flex:none;padding:11px 16px;border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;color:var(--dim);
+  display:flex;justify-content:space-between;gap:8px;
+}
+.log-empty{text-align:center;color:var(--dim);font-family:var(--mono);font-size:11px;
+  letter-spacing:.14em;padding:40px 12px;line-height:2}
+
+/* ============================ TOAST / FOOTER ============================ */
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translate(-50%,150%);z-index:300;
+  background:rgba(8,11,18,.96);border:1px solid rgba(var(--accent-rgb),.55);
+  color:var(--text);font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;
+  padding:14px 22px;border-radius:12px;box-shadow:0 0 30px rgba(var(--accent-rgb),.35);
+  transition:transform .45s cubic-bezier(.2,.9,.3,1.35);max-width:min(90vw,520px);text-align:center;
+}
+.toast.show{transform:translate(-50%,0)}
+footer{
+  border-top:1px solid var(--line);padding:26px clamp(14px,3vw,34px) 34px;text-align:center;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--dim);line-height:2.2;
+  position:relative;z-index:2;
+}
+footer b{color:var(--muted)}
+
+/* ============================ ANIMATIONS ============================ */
+@keyframes blink{0%,55%{opacity:1}56%,100%{opacity:.15}}
+@keyframes shake{
+  10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}
+  30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}
+}
+@keyframes panelIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+@keyframes slideIn{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+@keyframes blockPulse{
+  0%{box-shadow:0 0 0 0 rgba(45,255,158,.5)}50%{box-shadow:0 0 0 9px rgba(45,255,158,0)}
+  100%{box-shadow:0 0 0 0 rgba(45,255,158,0)}
+}
+@keyframes entryPulse{
+  0%{box-shadow:0 0 0 0 rgba(45,255,158,.4)}50%{box-shadow:0 0 0 7px rgba(45,255,158,0)}
+  100%{box-shadow:0 0 0 0 rgba(45,255,158,0)}
+}
+@keyframes panelPulse{
+  0%{box-shadow:0 0 0 0 rgba(45,255,158,.45)}50%{box-shadow:0 0 0 10px rgba(45,255,158,0)}
+  100%{box-shadow:0 0 0 0 rgba(45,255,158,0)}
+}
+@keyframes flipIn{from{opacity:0;transform:rotateX(-90deg) scale(.9)}to{opacity:1;transform:none}}
+/* glitch on mode switch */
+body.glitching .glitch-target{animation:glitchShift .6s steps(3) both}
+body.glitching .hero-title{animation:glitchShift .6s steps(3) both;
+  text-shadow:-3px 0 rgba(255,46,99,.9),3px 0 rgba(45,255,158,.9),0 0 30px var(--glow)}
+body.glitching::after{
+  content:"";position:fixed;inset:0;z-index:999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(var(--accent-rgb),.07) 0 2px,transparent 2px 6px);
+  animation:tear .6s steps(7) both;
+}
+@keyframes glitchShift{
+  0%{transform:translate(0);filter:none}
+  15%{transform:translate(-5px,1px);filter:hue-rotate(35deg) saturate(1.8)}
+  30%{transform:translate(4px,-2px) skewX(7deg)}
+  45%{transform:translate(-3px,2px);clip-path:inset(24% 0 42% 0)}
+  60%{transform:translate(5px,0) skewX(-5deg);clip-path:inset(62% 0 8% 0)}
+  75%{transform:translate(-2px,1px);clip-path:none}
+  100%{transform:translate(0);filter:none}
+}
+@keyframes tear{from{opacity:1;transform:translateY(-4%)}to{opacity:0;transform:translateY(4%)}}
+
+/* ============================ RESPONSIVE ============================ */
+@media (max-width:1180px){
+  .layout{grid-template-columns:1fr}
+  .log-panel{position:static;height:360px;top:auto}
+}
+@media (max-width:860px){
+  :root{--header-h:128px}
+  .topbar{flex-wrap:wrap;height:auto;padding-top:12px;padding-bottom:12px;row-gap:12px;justify-content:center}
+  .brand{order:1} .top-actions{order:2} .switch-wrap{order:3;width:100%;justify-content:center}
+  .hero-title{font-size:clamp(1.35rem,6.4vw,2.2rem)}
+  .layout{padding-bottom:50px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+  .findings{grid-template-columns:1fr}
+  .r-time{margin-left:0;width:100%}
+}
+@media (max-width:520px){
+  .switch-label{font-size:10px}
+  .mode-switch{width:80px;height:38px}
+  body[data-mode="secured"] .mode-switch .knob{transform:translateX(39px)}
+  .mode-switch .knob{width:28px;height:28px}
+  .brand h1{font-size:14px;letter-spacing:.2em}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .log-panel{height:320px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;
+    transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body data-mode="vulnerable">
+
+<canvas id="matrix"></canvas>
+<div class="scanlines"></div>
+
+<div class="wrap">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="topbar glitch-target">
+    <div class="brand">
+      <div class="logo-mark">⌁</div>
+      <div>
+        <h1>SHOPSECURE</h1>
+        <span class="sub">// pre-launch pentest lab</span>
+      </div>
+    </div>
+
+    <div class="switch-wrap">
+      <span class="switch-label" id="labelVuln">VULNERABLE</span>
+      <button class="mode-switch" id="modeSwitch" aria-label="Toggle vulnerable / secured mode" aria-pressed="false">
+        <span class="knob"></span>
+      </button>
+      <span class="switch-label" id="labelSec">SECURED</span>
+    </div>
+
+    <div class="top-actions">
+      <button class="ghost-btn" id="resetBtn" title="Reseed database and clear the log">⟲ RESET DEMO</button>
+    </div>
+  </header>
+
+  <!-- ===================== HERO ===================== -->
+  <section class="hero">
+    <div class="kicker"><span class="dot"></span> CASE STUDY · UNIT: IMPLEMENTING SECURITY DEFENSES</div>
+    <h2 class="hero-title"><span id="typed"></span><span class="caret"></span></h2>
+    <p class="hero-sub">
+      A fictional e-commerce store with two security postures behind one switch.
+      Run the same attack payload in <b>Vulnerable Mode</b>, watch it succeed, then flip to
+      <b>Secured Mode</b> and run it again — parameterized queries, validation, output encoding,
+      rate limiting and security headers stop it cold.
+    </p>
+    <div class="status-chips">
+      <div class="chip live" id="chipMode"><span class="led"></span> MODE: <b id="chipModeVal">VULNERABLE</b></div>
+      <div class="chip" id="chipHeaders">SECURITY HEADERS: <b id="chipHeadersVal">OFF</b></div>
+      <div class="chip" id="chipRate">RATE LIMIT: <b id="chipRateVal">OFF</b></div>
+      <div class="chip">DB: <b>SQLite (toy)</b></div>
+    </div>
+  </section>
+
+  <!-- ===================== TABS ===================== -->
+  <nav class="tabs glitch-target">
+    <button class="tab active" data-tab="login">⌬ AUTH / LOGIN</button>
+    <button class="tab" data-tab="search">⌕ PRODUCT SEARCH</button>
+    <button class="tab" data-tab="reviews">✎ PRODUCT REVIEWS</button>
+    <button class="tab" data-tab="findings">⛨ FINDINGS <span class="count">6</span></button>
+  </nav>
+
+  <!-- ===================== LAYOUT ===================== -->
+  <div class="layout">
+    <main class="content">
+
+      <!-- ---------- LOGIN ---------- -->
+      <section class="panel active" id="panel-login">
+        <div class="card" id="authCard">
+          <div class="card-head">
+            <span class="ic">⌬</span> Authenticate
+            <span class="spacer"></span>
+            <span class="mode-tag" data-mode-tag>VULNERABLE</span>
+          </div>
+
+          <form id="loginForm" novalidate>
+            <div class="row">
+              <div class="field">
+                <label for="username">Username</label>
+                <input class="input" id="username" autocomplete="off" spellcheck="false" placeholder="admin">
+              </div>
+              <div class="field">
+                <label for="password">Password</label>
+                <input class="input" id="password" type="password" autocomplete="off" placeholder="••••••••">
+              </div>
+            </div>
+
+            <div class="attempts" id="attemptsBox">
+              <div class="top"><span>FAILED ATTEMPTS</span><span><b id="attNow">0</b> / <b id="attMax">5</b></span></div>
+              <div class="bar"><div class="fill" id="attFill"></div></div>
+            </div>
+
+            <button class="btn block" type="submit" id="loginBtn">INITIATE LOGIN →</button>
+          </form>
+
+          <div class="result" id="loginResult" hidden></div>
+
+          <div class="hint">
+            <span class="lbl">DEMO CREDENTIALS</span>
+            <code>admin</code> / <code>admin123</code>
+            <span class="lbl" style="margin-top:12px">CLICK TO FILL — SQL INJECTION PAYLOAD</span>
+            <button class="p-chip" data-fill="#username" data-value="' OR '1'='1' --">' OR '1'='1' --</button>
+            <button class="p-chip" data-fill="#password" data-value="irrelevant">any password</button>
+            <button class="p-chip" data-fill="#username" data-value="admin'">admin' <small>(syntax error probe)</small></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- SEARCH ---------- -->
+      <section class="panel" id="panel-search">
+        <div class="card">
+          <div class="card-head">
+            <span class="ic">⌕</span> Product Search
+            <span class="spacer"></span>
+            <span class="mode-tag" data-mode-tag>VULNERABLE</span>
+          </div>
+
+          <form id="searchForm" class="search-bar" novalidate>
+            <input class="input" id="searchInput" autocomplete="off" spellcheck="false" placeholder="search products… e.g. hoodie">
+            <button class="btn" type="submit">SCAN</button>
+          </form>
+
+          <div class="hint">
+            <span class="lbl">CLICK TO FILL</span>
+            <button class="p-chip" data-fill="#searchInput" data-value="hoodie">hoodie</button>
+            <button class="p-chip" data-fill="#searchInput" data-value="' OR '1'='1' --">' OR '1'='1' --</button>
+            <button class="p-chip" data-fill="#searchInput" data-value="'">' <small>(leaks schema in Vulnerable Mode)</small></button>
+          </div>
+
+          <div class="meta-line" id="searchMeta"><span class="led"></span> <span>READY — full catalog loaded</span></div>
+          <div class="result" id="searchResult" hidden></div>
+          <div class="grid" id="results"></div>
+        </div>
+      </section>
+
+      <!-- ---------- REVIEWS ---------- -->
+      <section class="panel" id="panel-reviews">
+        <div class="card">
+          <div class="card-head">
+            <span class="ic">✎</span> Post a Review
+            <span class="spacer"></span>
+            <span class="mode-tag" data-mode-tag>VULNERABLE</span>
+          </div>
+
+          <form id="reviewForm" novalidate>
+            <div class="row">
+              <div class="field">
+                <label for="revProduct">Product</label>
+                <select class="select" id="revProduct"></select>
+              </div>
+              <div class="field">
+                <label for="revName">Display name</label>
+                <input class="input" id="revName" autocomplete="off" placeholder="anonymous" value="hacker">
+              </div>
+            </div>
+            <div class="field">
+              <label for="revComment">Comment</label>
+              <textarea class="textarea" id="revComment" placeholder="Share your thoughts on this product…"></textarea>
+            </div>
+            <button class="btn" type="submit">PUBLISH REVIEW</button>
+          </form>
+
+          <div class="result" id="reviewResult" hidden></div>
+
+          <div class="hint">
+            <span class="lbl">CLICK TO FILL — STORED XSS PAYLOAD</span>
+            <button class="p-chip" data-fill="#revComment" data-value='<img src=x onerror="alert(''XSS Demo!'')">'>&lt;img src=x onerror="alert('XSS Demo!')"&gt;</button>
+            <button class="p-chip" data-fill="#revComment" data-value="Great product, fast shipping!">clean comment</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="ic">☰</span> Review Wall <span class="spacer"></span>
+            <span class="mode-tag" id="reviewCount">0 REVIEWS</span></div>
+          <div id="reviewsList" style="display:flex;flex-direction:column;gap:13px"></div>
+        </div>
+      </section>
+
+      <!-- ---------- FINDINGS ---------- -->
+      <section class="panel" id="panel-findings">
+        <div class="card">
+          <div class="card-head"><span class="ic">⛨</span> Pentest Findings — Live Retest
+            <span class="spacer"></span><span class="mode-tag" data-mode-tag>VULNERABLE</span></div>
+          <div class="stats" id="stats"></div>
+          <p style="margin-top:18px;color:var(--muted);font-size:13px;line-height:1.7">
+            Retest status is <b style="color:var(--accent)">live</b>: it reflects the mode the switch is
+            currently in. Flip the switch and every badge re-evaluates.
+          </p>
+        </div>
+
+        <div class="findings" id="findings"></div>
+
+        <div class="card">
+          <div class="card-head"><span class="ic">▤</span> Response Security Headers</div>
+          <div style="overflow-x:auto">
+            <table class="htable">
+              <thead><tr><th>HEADER</th><th>VALUE</th><th style="text-align:right">STATUS</th></tr></thead>
+              <tbody id="headersBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ---------- LIVE ATTACK LOG ---------- -->
+    <aside class="log-panel" id="logPanel">
+      <div class="log-head">
+        <span class="rec"></span> LIVE ATTACK LOG
+        <span class="cnt" id="logCount">0 events</span>
+        <button class="log-clear" id="clearLog">clear</button>
+      </div>
+      <div class="log-body" id="logBody">
+        <div class="log-empty" id="logEmpty">▌ waiting for requests…<br>use the forms to generate traffic</div>
+      </div>
+      <div class="log-foot"><span>auto-poll 1.5s</span><span id="logMode">mode: vulnerable</span></div>
+    </aside>
+  </div>
+
+  <footer>
+    <b>SHOPSECURE</b> — fictional store, fake data, toy SQLite database · local classroom demo only<br>
+    payloads are logged on purpose · never run these techniques against systems you do not own
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="api-shim.js"></script>
+<script nonce="static-demo">
+/* ==========================================================================
+   ShopSecure demo front-end.  Two rendering paths exist on purpose:
+   Vulnerable Mode uses innerHTML for review bodies so stored XSS fires;
+   Secured Mode uses textContent so payloads render as harmless text.
+   ========================================================================== */
+"use strict";
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const state = { mode: "vulnerable", logId: 0, tab: "login" };
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body ? "POST" : "GET",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = {};
+  try { data = await res.json(); } catch (e) { /* noop */ }
+  return { http: res.status, data };
+}
+
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") el.className = v;
+    else if (k === "text") el.textContent = v;
+    else if (k === "html") el.innerHTML = v;   // only for the deliberate XSS demo
+    else el.setAttribute(k, v);
+  }
+  kids.flat().forEach(k => { if (k) el.appendChild(typeof k === "string" ? document.createTextNode(k) : k); });
+  return el;
+}
+
+/* ---------------------------- toast ------------------------------------- */
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+}
+
+/* ------------------------- matrix background ----------------------------- */
+(function matrix() {
+  const cvs = $("#matrix"), ctx = cvs.getContext("2d");
+  const CHARS = "アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF$#%&<>/\\{}[]";
+  let cols = 0, drops = [], speeds = [], font = 15, raf = 0;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function accent() {
+    return getComputedStyle(document.body).getPropertyValue("--accent").trim() || "#ff2e63";
+  }
+  function resize() {
+    cvs.width = innerWidth; cvs.height = innerHeight;
+    cols = Math.max(1, Math.floor(cvs.width / font));
+    drops = Array.from({ length: cols }, () => Math.random() * -60);
+    speeds = Array.from({ length: cols }, () => 0.45 + Math.random() * 0.85);
+    ctx.fillStyle = "#05070d"; ctx.fillRect(0, 0, cvs.width, cvs.height);
+  }
+  function frame() {
+    ctx.fillStyle = "rgba(5,7,13,0.085)";
+    ctx.fillRect(0, 0, cvs.width, cvs.height);
+    ctx.font = font + "px ui-monospace, monospace";
+    const col = accent();
+    for (let i = 0; i < cols; i++) {
+      const ch = CHARS[(Math.random() * CHARS.length) | 0];
+      const x = i * font, y = drops[i] * font;
+      if (y > 0) {
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = Math.random() > 0.977 ? "#ffffff" : col;
+        ctx.fillText(ch, x, y);
+        ctx.globalAlpha = 1;
+      }
+      if (y > cvs.height && Math.random() > 0.972) drops[i] = 0;
+      drops[i] += speeds[i];
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  resize();
+  addEventListener("resize", () => { cancelAnimationFrame(raf); resize(); if (!reduced) frame(); });
+  if (reduced) { ctx.fillStyle = accent(); ctx.font = font + "px monospace";
+    for (let i = 0; i < cols; i += 2) ctx.fillText(CHARS[(Math.random()*CHARS.length)|0], i*font, Math.random()*cvs.height); }
+  else frame();
+})();
+
+/* --------------------------- hero typing --------------------------------- */
+const TITLE = "PRE-LAUNCH PENETRATION TEST";
+let typeToken = 0;
+async function typeTitle() {
+  const token = ++typeToken;
+  const el = $("#typed");
+  el.innerHTML = "";
+  const suffix = state.mode === "secured" ? " // HARDENED" : " // UNPATCHED";
+  for (let i = 0; i < TITLE.length; i++) {
+    if (token !== typeToken) return;
+    el.textContent += TITLE[i];
+    await sleep(34 + Math.random() * 42);
+  }
+  await sleep(200);
+  if (token !== typeToken) return;
+  const s = h("span", { class: "suffix" });
+  el.appendChild(s);
+  for (let i = 0; i < suffix.length; i++) {
+    if (token !== typeToken) return;
+    s.textContent += suffix[i];
+    await sleep(40 + Math.random() * 40);
+  }
+}
+async function scrambleTitle() {
+  typeToken++;
+  const el = $("#typed");
+  const GLYPHS = "!<>-_\\/[]{}—=+*^?#01";
+  for (let i = 0; i < 12; i++) {
+    el.textContent = TITLE.split("").map(() => GLYPHS[(Math.random() * GLYPHS.length) | 0]).join("");
+    await sleep(45);
+  }
+  await typeTitle();
+}
+
+/* ------------------------------ tabs ------------------------------------- */
+$$(".tab").forEach(btn => btn.addEventListener("click", () => {
+  $$(".tab").forEach(b => b.classList.toggle("active", b === btn));
+  state.tab = btn.dataset.tab;
+  $$(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + state.tab));
+  if (state.tab === "findings") renderFindings();
+}));
+
+/* ------------------------- payload fill chips ---------------------------- */
+document.addEventListener("click", e => {
+  const chip = e.target.closest(".p-chip");
+  if (!chip) return;
+  const target = $(chip.dataset.fill);
+  if (!target) return;
+  target.value = chip.dataset.value;
+  target.focus();
+  if (target.tagName === "TEXTAREA") target.setSelectionRange(target.value.length, target.value.length);
+  toast("payload loaded → press the button");
+});
+
+/* ---------------------------- mode switch -------------------------------- */
+function glitch() {
+  document.body.classList.add("glitching");
+  setTimeout(() => document.body.classList.remove("glitching"), 650);
+}
+function syncModeUI() {
+  const sec = state.mode === "secured";
+  document.body.dataset.mode = state.mode;
+  $("#labelVuln").classList.toggle("on", !sec);
+  $("#labelSec").classList.toggle("on", sec);
+  $("#modeSwitch").setAttribute("aria-pressed", String(sec));
+  $$("[data-mode-tag]").forEach(t => t.textContent = sec ? "SECURED" : "VULNERABLE");
+  $("#chipModeVal").textContent = sec ? "SECURED" : "VULNERABLE";
+  $("#chipHeadersVal").textContent = sec ? "ON (CSP · nosniff · DENY)" : "OFF";
+  $("#chipRateVal").textContent = sec ? "ARMED (5 → 60s lock)" : "OFF";
+  $("#chipHeaders").classList.toggle("live", sec);
+  $("#chipRate").classList.toggle("live", sec);
+  $("#logMode").textContent = "mode: " + state.mode;
+}
+$("#modeSwitch").addEventListener("click", async () => {
+  const next = state.mode === "secured" ? "vulnerable" : "secured";
+  glitch();
+  await api("/api/mode", { mode: next });
+  state.mode = next;
+  syncModeUI();
+  renderFindings();
+  renderHeaders([]);
+  await refreshLog();
+  await loadState();
+  scrambleTitle();
+  toast(next === "secured" ? "SECURED MODE — defenses armed" : "VULNERABLE MODE — defenses disabled");
+});
+
+/* -------------------------------- login ---------------------------------- */
+let lockTick = 0;
+function paintAttempts(rate) {
+  const box = $("#attemptsBox");
+  if (!rate || !rate.armed) { box.classList.remove("show", "locked"); return; }
+  box.classList.add("show");
+  box.classList.toggle("locked", !!rate.locked);
+  $("#attMax").textContent = rate.max;
+  $("#attNow").textContent = rate.locked ? rate.max : rate.attempts;
+  $("#attFill").style.width = ((rate.locked ? rate.max : rate.attempts) / rate.max * 100) + "%";
+  clearInterval(lockTick);
+  if (rate.locked && rate.remaining > 0) {
+    let left = rate.remaining;
+    lockTick = setInterval(() => {
+      left--;
+      $("#attNow").textContent = left > 0 ? left + "s" : "0";
+      if (left <= 0) {
+        clearInterval(lockTick);
+        box.classList.remove("locked");
+        $("#attNow").textContent = "0";
+        $("#attFill").style.width = "0%";
+        toast("lockout expired — try again");
+      }
+    }, 1000);
+  }
+}
+async function loadState(user) {
+  const { data } = await api("/api/state" + (user ? "?user=" + encodeURIComponent(user) : ""));
+  if (data.mode) { state.mode = data.mode; syncModeUI(); }
+  if (data.rate) paintAttempts(data.rate);
+  if (data.headers && state.tab === "findings") renderHeaders(data.headers);
+}
+
+function showResult(sel, msg, kind, badge) {
+  const el = $(sel);
+  el.hidden = false;
+  el.className = "result " + kind;
+  el.innerHTML = "";
+  el.appendChild(h("span", { class: "badge", text: badge }));
+  el.appendChild(h("span", { text: msg }));
+}
+
+$("#loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const card = $("#authCard");
+  const btn = $("#loginBtn");
+  btn.disabled = true; btn.textContent = "… AUTHENTICATING";
+  const { data } = await api("/api/login", {
+    username: $("#username").value, password: $("#password").value,
+  });
+  btn.disabled = false; btn.textContent = "INITIATE LOGIN →";
+
+  if (data.ok) {
+    showResult("#loginResult", data.message, "ok", data.injected ? "BYPASS" : "OK");
+    if (data.injected) toast("⚠ Authentication bypassed with SQL injection");
+    else toast("login successful");
+  } else if (data.status === "blocked" || data.status === "locked") {
+    showResult("#loginResult", data.message, "block", data.status === "locked" ? "LOCKED" : "BLOCKED");
+    pulseLog();
+  } else if (data.status === "error") {
+    showResult("#loginResult", data.message, "err", "DB ERROR");
+  } else {
+    showResult("#loginResult", data.message, "fail", "FAILED");
+    card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+  }
+  paintAttempts({ armed: state.mode === "secured", max: 5,
+    attempts: data.attempts || 0, locked: data.status === "locked",
+    remaining: data.remaining || 0 });
+  await refreshLog();
+});
+
+$("#username").addEventListener("input", debounce(() => loadState($("#username").value.trim()), 400));
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+/* ------------------------------- search ---------------------------------- */
+function stars(rating) {
+  const full = Math.round(rating);
+  return "★".repeat(full) + "☆".repeat(5 - full);
+}
+function renderProducts(list, container) {
+  container.innerHTML = "";
+  if (!list.length) {
+    container.appendChild(h("div", { class: "empty", text: "NO PRODUCTS MATCHED THE QUERY" }));
+    return;
+  }
+  list.forEach((p, i) => {
+    const card = h("article", { class: "product" });
+    card.style.animationDelay = Math.min(i * 45, 400) + "ms";
+    card.appendChild(h("span", { class: "cat", text: (p.category || "").toUpperCase() }));
+    card.appendChild(h("h4", { text: p.name }));
+    card.appendChild(h("p", { text: p.description }));
+    card.appendChild(h("div", { class: "meta" },
+      h("span", { class: "price", text: "$" + Number(p.price).toFixed(2) }),
+      h("span", { class: "stars", text: stars(Number(p.rating) || 0) })));
+    container.appendChild(card);
+  });
+}
+async function loadProducts() {
+  const { data } = await api("/api/products");
+  renderProducts(data.results || [], $("#results"));
+}
+$("#searchForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const { data } = await api("/api/search", { query: $("#searchInput").value });
+  if (data.ok) {
+    renderProducts(data.results || [], $("#results"));
+    $("#searchMeta").innerHTML = "";
+    $("#searchMeta").append(h("span", { class: "led" }), h("span", { text: data.message }));
+    if (data.status === "ok") $("#searchResult").hidden = true;
+  } else {
+    const kind = data.status === "blocked" ? "block" : "err";
+    showResult("#searchResult", data.message, kind, data.status === "blocked" ? "BLOCKED" : "DB ERROR");
+    if (data.status === "blocked") { $("#results").innerHTML = ""; pulseLog(); }
+    $("#searchMeta").innerHTML = "";
+    $("#searchMeta").append(h("span", { class: "led" }), h("span", { text: "query rejected" }));
+  }
+  await refreshLog();
+});
+
+/* ------------------------------- reviews --------------------------------- */
+function reviewCard(r) {
+  const card = h("div", { class: "review" });
+  card.appendChild(h("div", { class: "avatar", text: (r.author || "?").charAt(0).toUpperCase() }));
+  const body = h("div", { class: "r-body" });
+  const top = h("div", { class: "r-top" },
+    h("span", { class: "r-name", text: r.author || "anonymous" }),
+    h("span", { class: "r-prod", text: (r.product || "product").toUpperCase() }));
+  if (r.sanitized) top.appendChild(h("span", { class: "tag-san", text: "SANITIZED" }));
+  else if (state.mode === "vulnerable" && /<\s*\/?\s*[a-z!]|on[a-z]+\s*=/i.test(r.body || ""))
+    top.appendChild(h("span", { class: "tag-xss", text: "LIVE XSS" }));
+  top.appendChild(h("span", { class: "r-time", text: r.created || "" }));
+  body.appendChild(top);
+  const text = h("div", { class: "r-text" });
+  if (state.mode === "vulnerable") {
+    /* INTENTIONAL DEMO VULNERABILITY (F-03): raw HTML, no output encoding */
+    text.innerHTML = r.body || "";
+  } else {
+    text.textContent = r.body || "";   // secured: output encoding
+  }
+  body.appendChild(text);
+  card.appendChild(body);
+  return card;
+}
+async function loadReviews() {
+  const { data } = await api("/api/reviews");
+  const list = data.results || [];
+  const box = $("#reviewsList");
+  box.innerHTML = "";
+  if (!list.length) box.appendChild(h("div", { class: "empty", text: "NO REVIEWS YET" }));
+  list.forEach(r => box.appendChild(reviewCard(r)));
+  $("#reviewCount").textContent = list.length + " REVIEW" + (list.length === 1 ? "" : "S");
+}
+async function loadProductSelect() {
+  const { data } = await api("/api/products");
+  const sel = $("#revProduct");
+  sel.innerHTML = "";
+  (data.results || []).forEach(p => sel.appendChild(h("option", { value: String(p.id), text: p.name })));
+}
+$("#reviewForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const body = $("#revComment").value;
+  if (!body.trim()) { toast("comment cannot be empty"); return; }
+  const { data } = await api("/api/reviews", {
+    product_id: Number($("#revProduct").value) || 1,
+    author: $("#revName").value.trim() || "anonymous",
+    body,
+  });
+  if (!data.ok) { showResult("#reviewResult", data.message || "rejected", "fail", "REJECTED"); return; }
+  const xss = /<\s*\/?\s*[a-z!]|on[a-z]+\s*=/i.test(body);
+  showResult("#reviewResult", data.message, state.mode === "secured" ? "block" : (xss ? "err" : "ok"),
+             state.mode === "secured" ? (xss ? "BLOCKED" : "SAFE") : (xss ? "STORED" : "POSTED"));
+  if (state.mode === "secured" && xss) pulseLog();
+  $("#revComment").value = "";
+  await loadReviews();
+  await refreshLog();
+});
+
+/* ------------------------------ findings --------------------------------- */
+const FINDINGS = [
+  { id: "F-01", sev: "Critical", cvss: "9.8", title: "SQL Injection — Login Form",
+    where: "POST /api/login · username / password",
+    desc: "Authentication query built by string concatenation, so an attacker can bypass login or dump the entire users table without valid credentials.",
+    fix: "Parameterized query with placeholder binding + strict input validation (quotes, comment markers and SQL keywords rejected before the query runs)." },
+  { id: "F-02", sev: "High", cvss: "8.6", title: "SQL Injection — Product Search",
+    where: "POST /api/search · query",
+    desc: "Search term concatenated into the LIKE clause: boolean payloads return the whole catalog, and a bare quote leaks raw sqlite3 errors with schema details.",
+    fix: "Parameterized LIKE queries, malicious-pattern validation, and generic error responses (internals only in the server log)." },
+  { id: "F-03", sev: "High", cvss: "8.1", title: "Stored XSS — Product Reviews",
+    where: "POST /api/reviews · comment body",
+    desc: "Review comments stored and rendered unescaped, so a payload such as <img src=x onerror=alert(1)> executes in the browser of every user who opens the review wall.",
+    fix: "Input validation (raw HTML rejected) + HTML-encoding at the data layer + output encoding in the browser (textContent instead of innerHTML)." },
+  { id: "F-04", sev: "Medium", cvss: "6.5", title: "No Rate Limiting on Login",
+    where: "POST /api/login",
+    desc: "Unlimited failed attempts let an attacker brute-force weak passwords online at full speed, with no lockout, delay or alerting.",
+    fix: "Server-side attempt counter: 5 failed attempts trigger a 60-second lockout with a live countdown, reset on successful login." },
+  { id: "F-05", sev: "Medium", cvss: "5.3", title: "Verbose Database Error Messages",
+    where: "Search and login error paths",
+    desc: "Raw sqlite3 exceptions are returned to the client, revealing table names, column names and query structure to an attacker.",
+    fix: "Exceptions caught server-side; clients receive a generic message while full details stay in the server-side log." },
+  { id: "F-06", sev: "Low", cvss: "3.7", title: "Missing Security Headers",
+    where: "All HTTP responses",
+    desc: "No CSP, X-Content-Type-Options or X-Frame-Options, and X-Powered-By discloses the stack — exposing clickjacking, MIME-sniffing and info-leak paths.",
+    fix: "CSP with a per-request nonce, X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy, Permissions-Policy; X-Powered-By removed." },
+];
+const SEV_COLOR = { Critical: "#ff2e63", High: "#ff8a3d", Medium: "#ffd166", Low: "#4dd7ff" };
+
+function renderFindings() {
+  const sec = state.mode === "secured";
+  const counts = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+  FINDINGS.forEach(f => counts[f.sev]++);
+
+  const stats = $("#stats");
+  stats.innerHTML = "";
+  Object.entries(counts).forEach(([sev, n], i) => {
+    const s = h("div", { class: "stat sev-" + sev.toLowerCase() });
+    s.style.animationDelay = i * 60 + "ms";
+    s.appendChild(h("div", { class: "n", text: String(n) }));
+    s.appendChild(h("div", { class: "l", text: sev.toUpperCase() }));
+    stats.appendChild(s);
+  });
+
+  const wrap = $("#findings");
+  wrap.innerHTML = "";
+  FINDINGS.forEach((f, i) => {
+    const card = h("div", { class: "finding" });
+    card.style.setProperty("--sev", SEV_COLOR[f.sev]);
+    card.style.animationDelay = Math.min(i * 70, 420) + "ms";
+
+    const top = h("div", { class: "f-top" },
+      h("span", { class: "sev", text: f.sev.toUpperCase() }),
+      h("span", { class: "f-id", text: f.id + " · CVSS " + f.cvss }));
+    card.appendChild(top);
+    card.appendChild(h("h4", { text: f.title }));
+    card.appendChild(h("div", { class: "where", text: "▸ " + f.where }));
+    card.appendChild(h("div", { class: "desc", text: f.desc }));
+
+    const fix = h("div", { class: "fix " + (sec ? "fix-yes" : "fix-no") });
+    fix.appendChild(h("b", { text: sec ? "✓ FIX APPLIED" : "✗ FIX NOT APPLIED (VULNERABLE MODE)" }));
+    fix.appendChild(document.createTextNode(f.fix));
+    card.appendChild(fix);
+
+    const retest = h("div", { class: "retest" },
+      h("span", { text: "RETEST" }),
+      h("span", { class: "pill " + (sec ? "pass" : "fail"), text: sec ? "PASS" : "FAIL" }));
+    card.appendChild(retest);
+    wrap.appendChild(card);
+  });
+}
+function renderHeaders(list) {
+  const body = $("#headersBody");
+  body.innerHTML = "";
+  if (!list.length) {
+    body.appendChild(h("tr", {}, h("td", { colspan: "3", style: "color:var(--dim)",
+      text: "headers load on next state sync…" })));
+    return;
+  }
+  list.forEach(hd => {
+    body.appendChild(h("tr", {},
+      h("td", { class: "hname", text: hd.name }),
+      h("td", { text: hd.ok ? hd.value : (hd.name === "X-Powered-By" ? hd.value + "  ← disclosure" : "absent") }),
+      h("td", { style: "text-align:right" },
+        h("span", { class: "hbadge " + (hd.ok ? "pass" : "fail"), text: hd.ok ? "PASS" : "FAIL" }))));
+  });
+}
+
+/* -------------------------------- log ------------------------------------ */
+const STATUS_LABEL = { ok: "INFO", pwn: "ATTACK SUCCEEDED", blocked: "BLOCKED", fail: "FAILED", lock: "LOCKED" };
+function fmtTime(ts) {
+  const d = new Date(ts * 1000), p = (n, l = 2) => String(n).padStart(l, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+}
+function addEntry(e) {
+  const empty = $("#logEmpty");
+  if (empty) empty.remove();
+  const entry = h("div", { class: "log-entry st-" + e.status });
+  entry.appendChild(h("div", { class: "log-line1" },
+    h("span", { class: "log-time", text: fmtTime(e.ts) }),
+    h("span", { class: "log-kind", text: e.kind }),
+    h("span", { class: "log-status", text: STATUS_LABEL[e.status] || e.status.toUpperCase() })));
+  entry.appendChild(h("div", { class: "log-msg", text: e.message }));
+  const body = $("#logBody");
+  body.appendChild(entry);
+  while (body.children.length > 90) body.removeChild(body.firstChild);
+  body.scrollTop = body.scrollHeight;
+  $("#logCount").textContent = body.querySelectorAll(".log-entry").length + " events";
+}
+async function refreshLog() {
+  const { data } = await api("/api/log?since=" + state.logId);
+  if (data.total !== undefined) state.logId = Math.max(state.logId, data.total);
+  (data.entries || []).forEach(addEntry);
+}
+function pulseLog() {
+  const p = $("#logPanel");
+  p.classList.remove("pulsing"); void p.offsetWidth; p.classList.add("pulsing");
+}
+$("#clearLog").addEventListener("click", () => {
+  $("#logBody").innerHTML = '<div class="log-empty" id="logEmpty">▌ view cleared — still polling…</div>';
+  $("#logCount").textContent = "0 events";
+});
+
+/* -------------------------------- reset ---------------------------------- */
+$("#resetBtn").addEventListener("click", async () => {
+  await api("/api/reset", {});
+  state.logId = 0;
+  $("#logBody").innerHTML = '<div class="log-empty" id="logEmpty">▌ waiting for requests…<br>use the forms to generate traffic</div>';
+  $("#logCount").textContent = "0 events";
+  $("#loginResult").hidden = true;
+  $("#searchResult").hidden = true;
+  $("#reviewResult").hidden = true;
+  $("#username").value = ""; $("#password").value = ""; $("#revComment").value = "";
+  $("#searchInput").value = "";
+  paintAttempts({ armed: state.mode === "secured", max: 5, attempts: 0, locked: false, remaining: 0 });
+  await Promise.all([loadProducts(), loadReviews(), loadProductSelect(), refreshLog()]);
+  toast("demo reset — database reseeded");
+});
+
+/* -------------------------------- init ----------------------------------- */
+(async function init() {
+  syncModeUI();
+  renderFindings();
+  typeTitle();
+  await Promise.all([loadProducts(), loadReviews(), loadProductSelect(), loadState(), refreshLog()]);
+  setInterval(refreshLog, 1500);
+})();
+</script>
+</body>
+</html>
