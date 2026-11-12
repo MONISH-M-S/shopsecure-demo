@@ -38,7 +38,7 @@ Flip the big switch after each attack — the **Live Attack Log** turns from red
 app.py                 Flask backend — vulnerable & secured code paths, attack log, SQLite
 templates/index.html   Single-page UI (dark cyberpunk theme, matrix background, animations)
 docs/                  Static build for GitHub Pages: same UI + SQLite compiled to WebAssembly
-presentation/          Slide deck (.pptx), report (.docx) and website QR code (.png)
+presentation/          (local only) slide deck .pptx, report .docx, website QR .png
 ```
 
 **Findings:** F-01 SQLi login (Critical 9.8) · F-02 SQLi search (High 8.6) · F-03 Stored XSS
